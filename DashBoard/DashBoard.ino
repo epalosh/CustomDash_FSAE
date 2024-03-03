@@ -1,42 +1,44 @@
-//Code by Ethan Palosh
-//for USC Racing
+//Code by Ethan Palosh, for USC Racing
 
-//LCD Screen Library
-/*
-  Universal 8bit Graphics Library, https://github.com/olikraus/u8glib/
-*/
-
-//notes:
-/*
-  screen width: 240px
-*/
-
-
-#include "U8glib.h"
+//standard libraries
 #include "math.h"
+#include "stdlib.h"
 
-#include "Canbus.h"  // for CAN functionality
+//screen libraries
+#include "U8glib.h"
+
+//CAN libraries
+#include "Canbus.h"
 #include "defaults.h"
 #include "global.h"
 #include "mcp2515.h"
 #include "mcp2515_defs.h"
-#include "stdlib.h"
 
 #include <SoftwareSerial.h> //maybe need?
 
+//LED Libraries
 #include "Adafruit_NeoPixel.h" //for LED stuff later...
 
+//LCD setup
+/*
+  Universal 8bit Graphics Library, https://github.com/olikraus/u8glib/
+*/
 
 // 8Bit Com: D0..D7: 2,3,4,5,6,7,8,9, cs=10, C/D=A5, wr=12, rd=11, reset=13
 U8GLIB_T6963_240X64 u8g(0, 1, 2, 3, 4, 5, 6, 7, 8, 10, 11, 12, 9);
-//void draw(void);
+
+//notes:
+/*
+  screen width is 240px
+  screen height is
+*/
 
 //number variables for math
 int voltsInt = 0;
 int voltsDec = 0;
 int rpmWidth = 0;
 
-//C* variables for output
+//cstring variables for output
 char rpmStr[10];
 char batteryVoltageStr[16];
 char coolantFStr[15];
@@ -44,11 +46,9 @@ char oilPressureStr[11];
 
 
 
-/////////////////////////////////////////////////////////////
-//CAN STUFF
-/////////////////////////////////////////////////////////////
+//CAN Setup
 
-//Start at page 262:
+//manual: start at page 262:
 //https://www.jegs.com/InstallationInstructions/0/017/017-30-7106.pdf
 
 /* MESSAGE IDS:
@@ -87,7 +87,7 @@ const int MESSAGE_FOUR = 4294942723;
 const float RPM_SCALE = .39063;
 const float BATT_VOLTAGE_SCALE = .0002455;
 
-//unused, but maube for future:
+//unused by us, but maybe for future:
 //const float ENG_LOAD_SCALE = .0015259;
 //const float ENG_THROTTLE_SCALE = .0015259;
 //const float ANALOG_SCALE = .00007782;
@@ -95,24 +95,26 @@ const float BATT_VOLTAGE_SCALE = .0002455;
 //const float SPEED_SCALE = .00390625;
 //const float IGN_SCALE = .35156;
 
+//variables to track the following values:
 int8_t coolantC;
 int rpm;
 int coolantF;
 double volts;
 
-//unused, but maybe for future:
+//unused by us, but maybe for future:
 //double o2;
 //double vehicleSpeed;
 //byte gear;
 //double load;
 
+//TO ADDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDDD!!!!!!!!!!!!!!!!!!!!
 int oilPressure = 0;
 
 
 //primary draw function (called every 50 ms in main loop)
 void draw(void) {
 
-  //dynamic math
+  //dynamic math to display values
   voltsInt = (int)volts/1;
   voltsDec = (int)((volts - (int)volts) * 100); //<<<<<<< UN-COMMENT FOR REAL DATA
   rpmWidth = rpm/27;
@@ -123,9 +125,9 @@ void draw(void) {
   snprintf (coolantFStr, 15, "Coolant: %0dF", coolantF);
   snprintf (oilPressureStr, 11, "Oil: %0dpsi", oilPressure);
 
-  //drawing variables
-  // u8g.drawStr(168, 32, rpmStr); //align right
-  u8g.drawStr(84, 32, rpmStr); //align center
+  //drawing the variables
+  //u8g.drawStr(168, 32, rpmStr); //align rpm right
+  u8g.drawStr(84, 32, rpmStr); //align rpm center
   u8g.drawStr(121, 62, batteryVoltageStr);
   u8g.drawStr(0, 52, oilPressureStr);
   u8g.drawStr(0, 64, coolantFStr);
@@ -146,33 +148,14 @@ void setup(void) {
 
   // flip screen, if required
   // u8g.setRot180();
-  
-  // set SPI backup if required
-  //u8g.setHardwareBackup(u8g_backup_avr_spi);
 
-  // assign default color value
-  // if ( u8g.getMode() == U8G_MODE_R3G3B2 ) {
-  //   u8g.setColorIndex(255);     // white
-  // }
-  // else if ( u8g.getMode() == U8G_MODE_GRAY2BIT ) {
-  //   u8g.setColorIndex(3);         // max intensity
-  // }
-  // else if ( u8g.getMode() == U8G_MODE_BW ) {
-  //   u8g.setColorIndex(1);         // pixel on
-  // }
-  // else if ( u8g.getMode() == U8G_MODE_HICOLOR ) {
-  //   u8g.setHiColorByRGB(255,255,255);
-  // }
-  
-  // pinMode(8, OUTPUT);
+
 
 
   //setup for SparkFun
-
-  /////////////////////
+  ///////////////////////////////////////////////////////////////
   //DANGER THIS STUFF BREAKS THE SCREEN FOR SOME REASON
-  /////////////////////
-
+  ///////////////////////////////////////////////////////////////
   // Serial.begin(9600); // for debug use according to the library
 
   // //Initializing MCP2515 CAN controller at the specified speed
@@ -182,21 +165,20 @@ void setup(void) {
   // else {
   //   Serial.println("Couldn't Init CAN");
   // }
-
-  /////////////////////
+  ///////////////////////////////////////////////////////////////
   //END
-  /////////////////////
+  ///////////////////////////////////////////////////////////////
   
   coolantC = 0;
   rpm = 0;
-  //double load;
   coolantF = 0;
+  volts = 0;
+
+  //not used by us, but maybe for future
+  //double load;
   //double o2;
   //double vehicleSpeed;
   //byte gear;
-  volts = 0;
-
-
 
 }
 
@@ -205,16 +187,20 @@ void loop(void) {
   //Reading variables from CAN and updating the values:
   tCAN message;
 
-  /////////////////////
+  ///////////////////////////////////////////////////////////////
   //DANGER THIS STUFF BREAKS THE SCREEN FOR SOME REASON
-  /////////////////////
+  ///////////////////////////////////////////////////////////////
   // if (mcp2515_get_message(&message)) {
   //   Serial.println("We found data");
   // }
-  /////////////////////
+  ///////////////////////////////////////////////////////////////
   //END
-  /////////////////////
+  ///////////////////////////////////////////////////////////////
   
+
+
+  //Reading from CAN, converting raw data, and updating the data variables:
+
   uint16_t rawRPM = (uint16_t)message.data[0] << 8;
   rawRPM |= message.data[1];
   rpm = (int)(rawRPM * RPM_SCALE);
@@ -229,7 +215,8 @@ void loop(void) {
   rawVolts |= message.data[8];
   volts = rawVolts * BATT_VOLTAGE_SCALE;
   
-  //unused, but maybe for future:
+
+  //unused by us, but maybe for future:
   // uint16_t rawLoad = (uint16_t)message.data[2] << 8;
   // rawLoad |= message.data[3];
   // load = rawLoad * ENG_LOAD_SCALE;
